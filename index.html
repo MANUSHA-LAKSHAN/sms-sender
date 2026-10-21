@@ -145,10 +145,10 @@ footer{text-align:center;color:#64748b;font-size:12px;margin-top:35px;line-heigh
   <h3>Compose Message</h3>
   <p class="desc">පහතින් ලබන්නා සහ message එක ඇතුළත් කරන්න.</p>
 
-  <div class="status">
-    ● Website is running<br>
-    SMS Gateway: Not connected yet
-  </div>
+ <div class="status" id="gatewayStatus">
+  ● Website is running<br>
+  SMS Gateway: Connecting...
+</div>
 
   <form id="messageForm">
     <label for="phone">Recipient phone number</label>
@@ -162,8 +162,9 @@ footer{text-align:center;color:#64748b;font-size:12px;margin-top:35px;line-heigh
       required></textarea>
     <div class="counter" id="counter">0 / 1000 characters</div>
 
-    <button class="primary" type="submit">Prepare Message →</button>
-  </form>
+   <button class="primary" id="sendBtn" type="submit">
+  Send SMS →
+</button>
 
   <div id="notice" class="notice" role="status"></div>
 
@@ -283,11 +284,13 @@ function showNotice(text, success = false) {
 phone.addEventListener("input", updatePreview);
 message.addEventListener("input", updatePreview);
 
-form.addEventListener("submit", event => {
+  
+form.addEventListener("submit", async (event) => {
   event.preventDefault();
 
   const number = normalizeNumber(phone.value);
   const text = message.value.trim();
+  const sendBtn = $("sendBtn");
 
   if (!number) {
     showNotice("වලංගු ශ්‍රී ලංකා mobile number එකක් ඇතුළත් කරන්න.");
@@ -299,35 +302,39 @@ form.addEventListener("submit", event => {
     return;
   }
 
-  showNotice(
-    "Message එක සූදානම්! දැනට SMS API එක සම්බන්ධ කර නැති නිසා SMS එක යවා නැහැ.",
-    true
-  );
-});
-
-$("copyBtn").addEventListener("click", async () => {
-  const text = message.value;
-
-  if (!text) {
-    showNotice("මුලින් message එකක් ලියන්න.");
-    return;
-  }
+  sendBtn.disabled = true;
+  sendBtn.textContent = "Sending SMS...";
 
   try {
-    await navigator.clipboard.writeText(text);
-    showNotice("Message එක clipboard එකට copy කළා.", true);
-  } catch {
-    showNotice("Copy කිරීමට browser clipboard permission අවශ්‍යයි.");
+    const response = await fetch("/api/send", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        phone: number,
+        message: text
+      })
+    });
+
+    const result = await response.json();
+
+    if (!response.ok || !result.success) {
+      throw new Error(result.message || "SMS යැවීම අසාර්ථකයි.");
+    }
+
+    showNotice(
+      result.message || "SMS request එක සාර්ථකයි.",
+      true
+    );
+  } catch (error) {
+    showNotice(
+      error.message || "Server එකට සම්බන්ධ වීමට නොහැකියි."
+    );
+  } finally {
+    sendBtn.disabled = false;
+    sendBtn.textContent = "Send SMS →";
   }
 });
 
-$("clearBtn").addEventListener("click", () => {
-  form.reset();
-  notice.style.display = "none";
-  updatePreview();
-});
 
-updatePreview();
-</script>
-</body>
-</html>
